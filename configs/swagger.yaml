@@ -1,0 +1,14 @@
+openapi: 3.0.0
+info:
+  title: My POS API
+  version: 1.0.0
+  description: API documentation for my POS application
+servers:
+  - url: http://localhost:6565
+paths:
+  /:
+    get:
+      summary: Root endpoint
+      responses:
+        '200':
+          description: Successful response
