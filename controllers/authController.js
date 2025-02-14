@@ -187,10 +187,26 @@ const emailVerify = async (req, res) => {
 
     logger.info(`Document with Email: ${email} , updated successfully`);
 
+    // Sign Payload
+    const payload = {
+      firstName: userExist.firstName,
+      email: email,
+      id: userExist._id,
+    };
+
+    const token = await signJWT(payload);
+
+    // Set token in response headers
+    res.setHeader("Authorization", `Bearer ${token}`);
+
+    logger.info(`Token generated for email: ${email} set on header`);
+
     return res.status(200).json({
       status: true,
-      message: "Account Verified Successfully!",
+      message: "Account Verified Successfully and token set on header!",
     });
+
+    
   } catch (error) {
 
       logger.error(
