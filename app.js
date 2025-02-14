@@ -73,10 +73,10 @@ app.get("/", (req, res) => {
 const apiPrefix = "api/pos/v1"
 
 //   Auth Routes
-app.use(`/${apiPrefix}`, require('./routes/authRoutes'));
+app.use(`/${apiPrefix}/auth`, require('./routes/authRoutes'));
 
 // User Routes
-app.use(`/${apiPrefix}`, require('./routes/userRoutes'));
+app.use(`/${apiPrefix}/user`, require('./routes/userRoutes'));
 
 // Catch undefined routes
 app.all('*', (req, res, next) => {

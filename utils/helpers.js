@@ -1,4 +1,14 @@
-const generateOtp = (num) => {
+require("dotenv").config();
+const jwt = require("jsonwebtoken");
+const fs = require("fs");
+const path = require("path");
+const Handlebars = require("handlebars");
+
+const { sendEMail } =  require("../services/mail/googleMail") ;
+
+
+
+const generateOtp = async (num) => {
   if (num < 2) {
     return Math.floor(1000 + Math.random() * 9000);
   }
@@ -22,6 +32,48 @@ const phoneValidation = (userPhone) => {
   }
 };
 
+const signJWT = async (payload) => {
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_TIME,
+  });
+};
+
+// send otp with otp_type to email
+const sendOTPViaMail = async ( email, _otp, firstName, subject, bannerTitle ) => {
+    
+    const templatePath = path.join(
+          __dirname,
+          "..",
+          "mail_templates",
+          "sign-up.hbs"
+        );
+    
+        const templateSource = fs.readFileSync(templatePath, "utf8");
+    
+        const template = Handlebars.compile(templateSource);
+    
+        //const existingUser = await UserModel.findOne({ email });
+    
+       // const _otp = generateOtp(5);
+    
+        const replacements = {
+          bannerTitle: bannerTitle, // "Verify Your Email",
+          username: firstName,
+          otp: _otp,
+        };
+    
+        const htmlToSend = template(replacements);
+    
+        const mailOptions = {
+          to: email,
+          subject:  subject,  //"Your OTP for Registration",
+          html: htmlToSend,
+        };
+    
+        await sendEMail(mailOptions);
+
+
+};
 
 //  async resendVerificationEmail(email: string) {
 //     const existingUser = await userModel.findOne({
@@ -48,8 +100,6 @@ const phoneValidation = (userPhone) => {
 //          code, // The generated token
 //        );
 
-   
-
 //       console.log('Resent Verification Email');
 //     } catch (error) {
 //       console.error('Error re-sending Verification email: ', error);
@@ -58,9 +108,9 @@ const phoneValidation = (userPhone) => {
 //     return existingUser.save();
 //   }
 
-
-
 module.exports = {
-    phoneValidation,
-    generateOtp,
-}
+  phoneValidation,
+  generateOtp,
+  signJWT,
+  sendOTPViaMail,
+};

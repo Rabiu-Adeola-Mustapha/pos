@@ -2,6 +2,7 @@ const authRoutes = require("express").Router();
 
 const {
   loginUser,
+  emailVerify
   ///forgetPassword,
   //resetPassword,
 } = require("../controllers/authController");
@@ -10,6 +11,7 @@ const {
 
 
 authRoutes.post("/login", loginUser);
+authRoutes.post("/verify-email/:email", emailVerify);
 
 
 

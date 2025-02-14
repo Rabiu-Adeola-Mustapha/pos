@@ -4,9 +4,16 @@ const nodemailer = require("nodemailer");
 const logger = require("../../utils/logger");
 
 
-async function sendMail(mailOptions) {
+async function sendEMail(mailOptions) {
+  logger.info(`Sending mail...`);
   const transporter = nodemailer.createTransport({
     service: "gmail",
+    port: 465, // Use 587 if STARTTLS is required
+    secure: true,
+    tls: {
+      rejectUnauthorized: false, // Accept self-signed certificates (Use with caution)
+    },
+
     auth: {
       user: process.env.GMAIL_USER, // Your Gmail address
       pass: process.env.GMAIL_PASS, // Your Gmail password or App-specific password
@@ -32,5 +39,5 @@ async function sendMail(mailOptions) {
 }
 
 module.exports = {
-  sendMail,
+  sendEMail,
 };

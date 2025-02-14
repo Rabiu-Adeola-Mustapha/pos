@@ -11,6 +11,10 @@ const otpSchema = new Schema ({
     type: String,
     required: true,
   },
+  firstName:{
+    type:String,
+    required:true,
+  },
   otp_type: {
     type: String,
     required: true,

@@ -1,14 +1,11 @@
-const fs = require("fs");
-const path = require("path");
-const Handlebars = require("handlebars");
 const mongoose = require('mongoose');
 
 const { validateCreateUser } = require("../validations/user.validation") ;
 const logger = require("../utils/logger");
 const UserModel =  require("../models/user.model") ;
 const OTPModel = require("../models/otp.model") ;
-const { generateOtp, } = require("../utils/helpers");
-const { sendMail } = require("../services/mail/googleMail");
+const { generateOtp, sendOTPViaMail } = require("../utils/helpers");
+const { sendEMail } = require("../services/mail/googleMail");
 
 
 
@@ -35,36 +32,13 @@ const registerUser = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { firstName, email, password } = req.body;
 
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "mail_templates",
-      "sign-up.hbs"
-    );
-
-    const templateSource = fs.readFileSync(templatePath, "utf8");
-
-    const template = Handlebars.compile(templateSource);
+    const { firstName, email } = req.body;
 
     const existingUser = await UserModel.findOne({ email });
 
-    const _otp = generateOtp(5);
+    const _otp = await generateOtp(5);
 
-    const replacements = {
-      bannerTitle: "Verify Your Email",
-      username: firstName,
-      otp: _otp,
-    };
-
-    const htmlToSend = template(replacements);
-
-    const mailOptions = {
-      to: email,
-      subject: "Your OTP for Registration",
-      html: htmlToSend,
-    };
 
     if (existingUser) {
       // if existing user is already email verified
@@ -86,13 +60,23 @@ const registerUser = async (req, res) => {
         // otp , email , otp_type
         logger.warn(`User with ${email} is yet to be verified`);
 
+        //email, firstName, subject, bannerTitle
+        await sendOTPViaMail(
+          email,
+          _otp,
+          firstName,
+          "Your OTP for Registration",
+          "Verify Your Email"
+        );
+
+
         await OTPModel.updateOne(
           { email },
           { $set: { otp: _otp } },
           { upsert: true }
         );
 
-        await sendMail(mailOptions);
+        
 
         await session.commitTransaction();
         session.endSession();
@@ -113,6 +97,7 @@ const registerUser = async (req, res) => {
       [
         {
           otp: _otp,
+          firstName: firstName,
           otp_type: "REGISTRATION",
           email,
         },
@@ -120,10 +105,18 @@ const registerUser = async (req, res) => {
       { session }
     );
 
-    await sendMail(mailOptions);
+
+    // email, firstName, subject, bannerTitle
+    await sendOTPViaMail(
+      email,
+      firstName,
+      "Your OTP for Registration",
+      "Verify Your Email"
+    );
 
     await session.commitTransaction();
     session.endSession();
+    
 
     // Simulate successful registration
     logger.info(`User registered successfully: ${email}`);
@@ -132,7 +125,9 @@ const registerUser = async (req, res) => {
       status: true,
       message: "Registration successful. Please verify your email.",
     });
+
   } catch (error) {
+    // Rollback transaction in case of any errors
     await session.abortTransaction();
     session.endSession();
     logger.error(
@@ -142,8 +137,11 @@ const registerUser = async (req, res) => {
       status: false,
       message: "Internal Server Error",
     });
-  }
+  };
+
 };
+
+
 
 module.exports = {
   registerUser,
