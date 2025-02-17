@@ -39,40 +39,44 @@ const signJWT = async (payload) => {
 };
 
 // send otp with otp_type to email
-const sendOTPViaMail = async ( email, _otp, firstName, subject, bannerTitle ) => {
-    
+const sendOTPViaMail = async ({ email, otp, firstName = "", subject, bannerTitle, templateFile,}) => {
+
+  try {
+
+    // Construct the dynamic template file path
     const templatePath = path.join(
-          __dirname,
-          "..",
-          "mail_templates",
-          "sign-up.hbs"
-        );
-    
-        const templateSource = fs.readFileSync(templatePath, "utf8");
-    
-        const template = Handlebars.compile(templateSource);
-    
-        //const existingUser = await UserModel.findOne({ email });
-    
-       // const _otp = generateOtp(5);
-    
-        const replacements = {
-          bannerTitle: bannerTitle, // "Verify Your Email",
-          username: firstName,
-          otp: _otp,
-        };
-    
-        const htmlToSend = template(replacements);
-    
-        const mailOptions = {
-          to: email,
-          subject:  subject,  //"Your OTP for Registration",
-          html: htmlToSend,
-        };
-    
-        await sendEMail(mailOptions);
+      __dirname,
+      "..",
+      "mail_templates",
+      templateFile
+    );
 
+    // Read and compile the template
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const template = Handlebars.compile(templateSource);
 
+    // Prepare email content with optional firstName
+    const replacements = {
+      bannerTitle,
+      firstName, // If not provided, it defaults to an empty string
+      otp,
+    };
+
+    const htmlToSend = template(replacements);
+
+    // Prepare email options
+    const mailOptions = {
+      to: email,
+      subject,
+      html: htmlToSend,
+    };
+
+    // Send email
+    await sendEMail(mailOptions);
+    console.log(`OTP email sent to ${email}`);
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+  }
 };
 
 //  async resendVerificationEmail(email: string) {

@@ -5,50 +5,58 @@ const bcrypt = require('bcrypt');
 
 
 
-const userSchema = new Schema({
-  firstName: {
-    type: String,
-    required: true,
-  },
-  lastName: {
-    type: String,
-    //required: true,
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    validate: {
-        validator: function(v) {
-            return /\S+@\S+\.\S+/.test(v);
+const userSchema = new Schema(
+  {
+    firstName: {
+      type: String,
+      required: true,
+    },
+    lastName: {
+      type: String,
+      //required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      validate: {
+        validator: function (v) {
+          return /\S+@\S+\.\S+/.test(v);
         },
-        message : "Email must is not valid"
-    }
-  },
-  password: {
-    type: String,
-    required: true,
-  },
+        message: "Email must is not valid",
+      },
+    },
+    password: {
+      type: String,
+      required: true,
+    },
 
-  phone: {
-    type: String,
-    // required: true,
-    validate: {
-        validator: function(v) {
-            return /\d{11}/.test(v) ;
+    phone: {
+      type: String,
+      // required: true,
+      validate: {
+        validator: function (v) {
+          return /\d{11}/.test(v);
         },
-        message: "Phone Number is not vallid !"
+        message: "Phone Number is not vallid !",
+      },
+    },
+    role: {
+      type: String,
+      // required: true,
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    resetToken:{
+      type : String
+    },
+    resetTokenExpires:{
+      type: Date
     }
   },
-  role: {
-    type: String,
-   // required: true,
-  },
-  isEmailVerified: {
-    type : Boolean,
-    default: false
-  }
-},{timestamps: true}
+  { timestamps: true }
 ); 
 
 

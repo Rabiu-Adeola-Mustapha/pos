@@ -1,5 +1,9 @@
+require("dotenv").config();
+const {nanoid} = require('nanoid');
+const bcrypt = require("bcrypt")
+
 const { signJWT, sendOTPViaMail, generateOtp} = require('../utils/helpers');
-const {validateLoginUser} = require('../validations/user.validation');
+const {validateLoginUser, validateForgotPassword} = require('../validations/user.validation');
 const logger = require("../utils/logger");
 const UserModel =  require("../models/user.model") ;
 const OTPModel = require("../models/otp.model") ;
@@ -15,7 +19,7 @@ const loginUser = async (req, res) => {
   const { error } = validateLoginUser(req.body);
 
   if (error) {
-    logger.warn(`Validation failed: ${error.details[0].message}`);
+    logger.warn(`Validation failed for email: ${req.body.email} on controller /login. Error: ${error.details[0].message}`);
     return res.status(400).json({
       status: false,
       message: error.details[0].message,
@@ -41,7 +45,7 @@ const loginUser = async (req, res) => {
 
     if (!isCorrectPassword) {
       logger.error(
-        `Incorrect Password for email: ${email} -  ${error.details[0].message}`
+        `Incorrect Password for email: ${email} }`
       );
       return res.status(401).json({
         status: false,
@@ -51,21 +55,23 @@ const loginUser = async (req, res) => {
 
     // check if user email is verified
     if (!userExist.isEmailVerified) {
-      logger.warn(
-        `Email not verified for email: ${email} -  ${error.details[0].message}`
-      );
+      logger.warn(`Email not verified for email: ${email}. Resending OTP...`);
+
+      // Generate OTP for email verification
+      const _otp = await generateOtp(5);
 
       // resend otp to user email with otp_type REGISTRATION
       //email, firstName, subject, bannerTitle
-      await sendOTPViaMail(
+      await sendOTPViaMail({
         email,
-        _otp,
-        firstName,
-        "Your OTP for Registration",
-        "Verify Your Email"
-      );
+        otp: _otp,
+        firstName: userExist.firstName,
+        subject: "Your OTP for Registration",
+        bannerTitle: "Verify Your Email",
+        templateFile: "sign-up.hbs",
+      });
 
-      logger.warn(
+      logger.info(
         `OTP resent to email : ${email} while trying to login before verifying the email address`
       );
 
@@ -100,7 +106,7 @@ const loginUser = async (req, res) => {
      //await session.abortTransaction();
      //session.endSession();
      logger.error(
-       `login failed for email: ${req.params.email}. Error: ${error.message}`
+       `login failed for email: ${req.body.email}. Error: ${error.message}`
      );
      res.status(500).json({
        status: false,
@@ -155,13 +161,14 @@ const emailVerify = async (req, res) => {
 
     if (diffUpdatedAt > 5) {
       // send a new one via email
-      await sendOTPViaMail(
+      await sendOTPViaMail({
         email,
-        _otp,
-        recordExist.firstName,
-        "Your OTP for Registration",
-        "Verify Your Email"
-      );
+        otp: _otp,
+        firstName: recordExist.firstName,
+        subject: "Your OTP for Registration",
+        bannerTitle: "Verify Your Email",
+        templateFile: "sign-up.hbs"
+      });
 
       logger.error(
         `OTP expired for email : ${email} and new OTP sent via email`
@@ -189,7 +196,7 @@ const emailVerify = async (req, res) => {
 
     // Sign Payload
     const payload = {
-      firstName: userExist.firstName,
+      firstName: recordExist.firstName,
       email: email,
       id: userExist._id,
     };
@@ -221,9 +228,193 @@ const emailVerify = async (req, res) => {
  
 };
 
-const forgotPassword = async (req, res) => {};
 
-const resetPassword = async (req, res) => {};
+const forgotPassword = async (req, res) => {
+  // Log the incoming forgot password request
+  logger.info(
+    `Incoming forgot password request for email: ${req.body.email} on controller /forgotPassword`
+  );
+
+  // validate with joi
+  const { error } = validateForgotPassword(req.body);
+
+  if (error) {
+    logger.warn(
+      `Validation failed for email: ${req.body.email} on controller /forgotPassword. Error: ${error.details[0].message}`
+    );
+
+    return res.status(400).json({
+      status: false,
+      message: error.details[0].message,
+    });
+  }
+
+  const { email } = req.body;
+
+  // Use nanoid to generate a secure reset token
+  const resetToken = nanoid(64); // 64-character token
+  //const hashedToken = await bcrypt.hash(resetToken, 10);
+ 
+
+  try {
+    const user = await UserModel.findOne({ email });
+
+    // If no use
+    if (!user) {
+      logger.error(
+        `User with emai ${email} does not exit on controller /forgotPassword`
+      );
+      return res.status(401).json({
+        status: false,
+        message: "Check your mail for OTP if you have registered",
+      });
+    }
+    // send otp to the mail for verification
+    //const _otp = await generateOtp(5);
+
+    const magicLink = `${process.env.FRONTEND_LOCAL_URL}/auth/reset-password?token=${resetToken}`;
+    //const hashedMagicLink = await bcrypt.hash(magicLink, 10);
+
+    // send mail
+    //email, firstName, subject, bannerTitle
+    await sendOTPViaMail({
+      email,
+      otp: magicLink,
+      firstName : user.firstName,
+      subject: "Your OTP for Forgot Password", //
+      bannerTitle: "Password Reset Request",
+      templateFile: "forgotPass.hbs",
+    });
+
+    logger.info(`Magic Link sent to email : ${email} for forgot Password`);
+
+    // save otp to otp table
+    await UserModel.updateOne(
+      { email },
+      { $set: { resetToken: resetToken } },
+      { upsert: true }
+    );
+
+    return res.status(403).json({
+      status: false,
+      message:
+        "Please kindly verify your email using the otp sent to your email.",
+    });
+  } catch (error) {
+    logger.error(
+      `Forgot Password sending Magic Link failed for email: ${req.params.email}. Error: ${error.message}`
+    );
+    res.status(500).json({
+      status: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+
+const resetPassword = async (req, res) => {
+  // Log the incoming reset password request
+  logger.info(
+    `Incoming reset password request with link: ${req.url} on controller /resetPassword`
+  );
+
+  // validate the query string
+  const { token } = req.query;
+  const { newPassword } = req.body;
+
+  logger.info(`token : ${token}`);
+
+  // find the token in oTP Model
+
+  token = token.trim();
+
+  try {
+
+      const recordExist = await UserModel.findOne({
+        resetToken: token,
+      });
+
+      // check if record exist
+      if (!recordExist) {
+        logger.error(`Record does not exist for token : ${token}`);
+        return res.status(401).json({
+          status: false,
+          message: "Invalid Request",
+        });
+      }
+
+      // check if the createdAt or updatedAt is less than 10mints
+      // const createdAt = new Date(recordExist.createdAt);
+      const updatedAt = new Date(recordExist.updatedAt);
+      const now = new Date();
+
+      // Calculate time difference in minutes
+      //const diffCreatedAt = (now - createdAt) / (1000 * 60);
+      const diffUpdatedAt = (now - updatedAt) / (1000 * 60);
+
+     if (diffUpdatedAt > 7) {
+        // send a new one via email
+
+        const resetToken = nanoid(64); // 64-character token
+        const magicLink = `${process.env.FRONTEND_LOCAL_URL}/auth/reset-password?token=${resetToken}`;
+
+        await sendOTPViaMail({
+          email,
+          otp: magicLink,
+          firstName: recordExist.firstName,
+          subject: "Your OTP for Forgot Password", //
+          bannerTitle: "Password Reset Request",
+          templateFile: "forgotPass.hbs",
+        });
+
+        logger.error(
+          `Magic link expired for email : ${recordExist.email} and new link sent via email`
+        );
+
+        // save otp to otp table
+        await UserModel.updateOne(
+          { email },
+          { $set: { resetToken: resetToken } },
+          { upsert: true }
+        );
+
+        return res.status(403).json({
+          status: false,
+          message:
+            "Please kindly reset your password using the link sent to your email.",
+        });
+      }
+
+      updatePassword = await bcrypt.hash(newPassword, 10) ;
+      recordExist.password = updatePassword ;
+      recordExist.resetToken = null ;
+
+      await recordExist.save() ;
+
+       logger.info(`Reset Password successfull for email: ${recordExist.email}`);
+
+      return res.status(200).json({
+        status: true,
+        message: "Password changed successfully",
+      });
+
+
+
+
+
+  } catch (error) {
+
+    logger.error(
+      `Forgot Password sending Magic Link failed for email: ${recordExist.email}. Error: ${error.message}`
+    );
+    res.status(500).json({
+      status: false,
+      message: "Internal Server Error",
+    });
+  }
+  
+
+};
 
 const changePassword = async (req, res) => {};
 
@@ -237,4 +428,7 @@ const verifyToken = async (req, res) => {};
 module.exports = {
   loginUser,
   emailVerify,
+  resetPassword,
+  forgotPassword,
+  changePassword,
 };

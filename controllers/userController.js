@@ -58,16 +58,17 @@ const registerUser = async (req, res) => {
       if (!existingUser.isEmailVerified) {
         // resend otp and update the previous otp value
         // otp , email , otp_type
-        logger.warn(`User with ${email} is yet to be verified`);
+        logger.warn(`User with ${email} already registered but is yet to be verified`);
 
         //email, firstName, subject, bannerTitle
-        await sendOTPViaMail(
+        await sendOTPViaMail({
           email,
-          _otp,
+          otp : _otp,
           firstName,
-          "Your OTP for Registration",
-          "Verify Your Email"
-        );
+          subject: "Your OTP for Registration",
+          bannerTitle: "Verify Your Email",
+          templateFile: "sign-up.hbs"
+        });
 
 
         await OTPModel.updateOne(
@@ -107,12 +108,14 @@ const registerUser = async (req, res) => {
 
 
     // email, firstName, subject, bannerTitle
-    await sendOTPViaMail(
+    await sendOTPViaMail({
       email,
       firstName,
-      "Your OTP for Registration",
-      "Verify Your Email"
-    );
+      otp: _otp,
+      subject: "Your OTP for Registration",
+      bannerTitle:"Verify Your Email",
+      templateFile: "sign-up.hbs"
+    });
 
     await session.commitTransaction();
     session.endSession();
